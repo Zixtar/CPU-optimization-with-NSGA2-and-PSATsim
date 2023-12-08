@@ -10,6 +10,6 @@ namespace MicroControllerOptimizer.XMLSerialization
     public class psatsim
     {
         [XmlElement]
-        public config[] config;
+        public config config;
     }
 }
