@@ -8,13 +8,25 @@ namespace MicroControllerOptimizer.XMLSerialization
 {
     public class config
     {
+        
+        public static config GetRandomConfig()
+        {
+            var config = new config();
+            config.name = "tempName";
+            config.general = new generalClass[1];
+            config.general[0] = generalClass.GenerateRandomGeneral();
+            config.execution = executionClass.GenerateRandomExecution();
+            config.memory = memoryClass.GenerateRandomMemory();
+            return config;
+        }
+
         [XmlAttribute]
         public string name;
         [XmlElement]
-        public general[] general;
+        public generalClass[] general;
         [XmlElement]
-        public execution execution;
+        public executionClass execution;
         [XmlElement]
-        public memory memory;
+        public memoryClass memory;
 	}
 }

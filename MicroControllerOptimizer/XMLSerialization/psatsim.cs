@@ -9,6 +9,12 @@ namespace MicroControllerOptimizer.XMLSerialization
 {
     public class psatsim
     {
+        public static psatsim GetRandomPsatsim()
+        {
+            var psatsim = new psatsim();
+            psatsim.config = config.GetRandomConfig();
+            return psatsim;
+        }
         [XmlElement]
         public config config;
     }
