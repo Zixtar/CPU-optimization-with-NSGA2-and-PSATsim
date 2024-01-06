@@ -1,9 +1,11 @@
 ﻿using MicroControllerOptimizer.XMLSerialization;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,26 +29,47 @@ namespace MicroControllerOptimizer
 	{
 		const string PathToPsatSim = "..\\..\\..\\..\\External\\PSATSim";
 		public MainWindow()
-		{
-			var path = PathToPsatSim;
-			InitializeComponent();
-			psatsim psatsim = GetDefaultConfiguration();
-			//TODO Change parameters in the config
-			AddAllTracesToConfiguration(ref psatsim, path);
-			WriteconfigurationXML(psatsim, path);
-			System.Diagnostics.Process.Start(Path.Combine(path, "psatsim_con.exe"), "input.xml output.xml -Ag");
-			GetAvgParameters(path, out double avgCpi, out double avgEnergy);
-		}
+        {
+            var path = Path.GetFullPath(PathToPsatSim);
+            InitializeComponent();
+            psatsim psatsim = GetDefaultConfiguration();
+			
+            //TODO Change parameters in the config
+            AddAllTracesToConfiguration(ref psatsim, path);
+            WriteconfigurationXML(psatsim, path);
+            Process? process = RunPsatSimWithInputFile(path);
+            while (!process.HasExited) ;
 
-		private void AddAllTracesToConfiguration(ref psatsim psatsim, string path)
+            GetAvgParameters(path, out double avgCpi, out double avgEnergy);
+        }
+
+        private static Process? RunPsatSimWithInputFile(string path)
+        {
+            var startInfo = new ProcessStartInfo();
+            startInfo.FileName = "C:\\windows\\system32\\cmd.exe";
+            startInfo.Arguments = $"/C cd /D {path}\\ & .\\psatsim_con.exe input.xml output.xml -Ag";
+
+            var outputFilePath = Path.Combine(path, "output.xml");
+            if (File.Exists(outputFilePath))
+            {
+                File.Delete(outputFilePath);
+            }
+
+            var process = Process.Start(startInfo);
+            return process;
+        }
+
+        private void AddAllTracesToConfiguration(ref psatsim psatsim, string path)
 		{
 			var traces = Directory.GetFiles(Path.Combine(path, "Traces")).Select(x => Path.GetFileName(x));
 			var tempGenerals = new List<general>();
-			var firstGeneral = psatsim.config.general.First();
+			var tempGeneral = psatsim.config.general.First();
+			var TracesFolderRelativetoPsatsim = "./Traces";
 			foreach (var trace in traces)
 			{
-				firstGeneral.trace = trace;
-				tempGenerals.Add(firstGeneral);
+				var newGeneral = tempGeneral.DeepCopy();
+				newGeneral.trace = $"{TracesFolderRelativetoPsatsim}/{trace}";
+				tempGenerals.Add(newGeneral);
 			}
 			psatsim.config.general = tempGenerals.ToArray();
 		}

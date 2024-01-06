@@ -9,7 +9,12 @@ namespace MicroControllerOptimizer.XMLSerialization
 {
     public class general
     {
-        [XmlAttribute]
+		public general DeepCopy()
+		{
+			var copiedGeneral = this.MemberwiseClone() as general;
+			return copiedGeneral;
+		}
+			[XmlAttribute]
         public int superscalar;
         [XmlAttribute]
         public int rename;

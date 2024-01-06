@@ -7,6 +7,45 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Label Content="ALGORITHM NSGA-2" FontWeight="Bold" FontSize="20" Grid.Row="0"/>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Label Grid.Row="1" Grid.Column="0" Content="Pop Size" FontWeight="Medium" FontSize="14"  Margin="0,10,0,10"/>
+                <TextBox x:Name="txtPopSize" Grid.Row="1" Grid.Column="1" FontSize="14" Width="100" HorizontalAlignment="Left" Margin="0,10,0,10"/>
+                <Label Grid.Row="2" Grid.Column="0" Content="Generations" FontWeight="Medium" FontSize="14"  Margin="0,10,0,10"/>
+                <TextBox x:Name="txtGenerationsNr" Grid.Row="2" Grid.Column="1" FontSize="14" Width="100" HorizontalAlignment="Left" Margin="0,10,0,10"/>
+                <Label Grid.Row="3" Grid.Column="0" Content="Crossover Prob" FontWeight="Medium" FontSize="14"  Margin="0,10,0,10"/>
+                <TextBox x:Name="txtCrossoverProb" Grid.Row="3" Grid.Column="1" FontSize="14" Width="100" HorizontalAlignment="Left" Margin="0,10,0,10"/>
+                <Label Grid.Row="4" Grid.Column="0" Content="Crossover Dist" FontWeight="Medium" FontSize="14"  Margin="0,10,0,10"/>
+                <TextBox x:Name="txtCrossoverDistance" Grid.Row="4" Grid.Column="1" FontSize="14" Width="100" HorizontalAlignment="Left" Margin="0,10,0,10"/>
+                <Label Grid.Row="5" Grid.Column="0" Content="Mutation Prob" FontWeight="Medium" FontSize="14"  Margin="0,10,0,10"/>
+                <TextBox x:Name="txtMutationProb" Grid.Row="5" Grid.Column="1" FontSize="14" Width="100" HorizontalAlignment="Left" Margin="0,10,0,10"/>
+                <Label Grid.Row="6" Grid.Column="0" Content="Mutation Dist" FontWeight="Medium" FontSize="14"  Margin="0,10,0,10"/>
+                <TextBox x:Name="txtMutationDistance" Grid.Row="6" Grid.Column="1" FontSize="14" Width="100" HorizontalAlignment="Left" Margin="0,10,0,10"/>
+                <Button Grid.Row="7" Grid.Column="1" Content="Launch" FontWeight="Medium" FontSize="15" Width="80" Height="40" HorizontalAlignment="Left"/>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>
