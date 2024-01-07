@@ -30,8 +30,12 @@ namespace MicroControllerOptimizer
         const string PathToPsatSim = "..\\..\\..\\..\\External\\PSATSim";
         public MainWindow()
         {
-            var path = Path.GetFullPath(PathToPsatSim);
             InitializeComponent();
+        }
+
+        private void LaunchPsatsim()
+        {
+            var path = Path.GetFullPath(PathToPsatSim);
 
             Int32.TryParse(txtPopSize.Text, out var popSize);
             List<psatsim> configs = new List<psatsim>();
@@ -40,7 +44,7 @@ namespace MicroControllerOptimizer
                 configs.Add(psatsim.GetRandomPsatsim());
             }
 
-            RunConfig(configs[0],path);
+            RunConfig(configs[0], path);
 
             GetAvgParameters(path, out double avgCpi, out double avgEnergy);
         }
@@ -167,6 +171,11 @@ namespace MicroControllerOptimizer
             config.name = "Case1";
             psatsim.config = config;
             return psatsim;
+        }
+
+        private void btnLaunch_Click(object sender, RoutedEventArgs e)
+        {
+            LaunchPsatsim();
         }
     }
 }
