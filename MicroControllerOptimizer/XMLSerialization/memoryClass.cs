@@ -9,45 +9,31 @@ namespace MicroControllerOptimizer.XMLSerialization
 {
     public class memoryClass
     {
-        static public memoryClass GenerateRandomMemory()
+        static public memoryClass SetMemoryValues()
         {
             var memory = new memoryClass();
             memory.architecture = memArchitecture.l2;
-            do
-            {
-                memory.system = GenerateRandomMemoryParams();
-                memory.system.hitrate = 1;
-                memory.l1_code = GenerateRandomMemoryParams();
-                memory.l1_data = GenerateRandomMemoryParams();
-                memory.l2 = GenerateRandomMemoryParams();
-            } while (memory.BadConfiguration());
+
+            memory.system = new memoryParameters();
+            memory.l1_code = new memoryParameters();
+            memory.l1_data = new memoryParameters();
+            memory.l2 = new memoryParameters();
+            memory.system.latency = 20;
+            memory.system.hitrate = 1;
+            memory.l1_code.hitrate = 0.990;
+            memory.l1_code.latency = 1;
+            memory.l1_data.hitrate = 0.980;
+            memory.l1_data.latency = 1;
+            memory.l2.hitrate = 0.950;
+            memory.l2.latency = 8;
+
 
             return memory;
-        }
-        public bool BadConfiguration()
-        {
-            if (l1_code.latency > l2.latency || l1_data.latency > l2.latency || l2.latency > system.latency)
-                return true;
-
-            return false;
         }
         [XmlAttribute]
         public memArchitecture architecture;
-
         [XmlElement]
         public memoryParameters system;
-        static memoryParameters GenerateRandomMemoryParams()
-        {
-            Random mem = new Random(DateTime.Now.TimeOfDay.Nanoseconds);
-            var memory = new memoryParameters();
-
-            //TODO should hitrate be settable ?????? maybe constants that make sense would be better
-            //TODO should latency be settable ?????? it's clear that 0 latency would be the most performant with the least energy consumed, no?
-            memory.hitrate = mem.NextDouble();
-            memory.latency = mem.Next(1, 100);
-
-            return memory;
-        }
         [XmlElement]
         public memoryParameters? l1_code;
         [XmlElement]

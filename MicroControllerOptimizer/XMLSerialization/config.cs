@@ -16,7 +16,7 @@ namespace MicroControllerOptimizer.XMLSerialization
             config.general = new generalClass[1];
             config.general[0] = generalClass.GenerateRandomGeneral();
             config.execution = executionClass.GenerateRandomExecution();
-            config.memory = memoryClass.GenerateRandomMemory();
+            config.memory = memoryClass.SetMemoryValues();
             return config;
         }
 
