@@ -188,5 +188,14 @@ namespace MicroControllerOptimizer
             return psatsimVar;
         }
 
+        private void CrossoverPsatsims(ref psatsim psatsimVar1,ref psatsim psatsimVar2)
+        {
+            var rand = new Random();
+            if (rand.NextDouble() < Convert.ToDouble(txtCrossoverProb.Text))
+            {
+                psatsimVar1.CrossoverRandomVariables(psatsimVar2, Convert.ToDouble(txtCrossoverDistance.Text));
+            }
+        }
+
     }
 }

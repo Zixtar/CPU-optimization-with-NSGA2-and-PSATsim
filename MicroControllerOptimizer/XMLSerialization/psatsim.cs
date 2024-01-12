@@ -19,7 +19,7 @@ namespace MicroControllerOptimizer.XMLSerialization
         public void MutateRandomVariable(double distance)
         {
             var rand = new Random();
-            var variableToChange = (psatsimMutation)rand.Next(1, Enum.GetValues<psatsimMutation>().Length);
+            var variableToChange = (psatsimMutation)rand.Next(0, Enum.GetValues<psatsimMutation>().Length);
 
             switch (variableToChange)
             {
@@ -61,6 +61,114 @@ namespace MicroControllerOptimizer.XMLSerialization
                     break;
                 default:
                     break;
+            }
+        }
+
+        internal void CrossoverRandomVariables(psatsim psatsimVar2, double distance)
+        {
+            var rand = new Random();
+            var numberOfVariablesToChange = Enum.GetValues<psatsimMutation>().Length * distance;
+            List<psatsimMutation> changedVariables = new List<psatsimMutation>();
+            
+            while (numberOfVariablesToChange > 0)
+            {
+                psatsimMutation variableToCrossover;
+                do
+                {
+                    variableToCrossover = (psatsimMutation)rand.Next(0, Enum.GetValues<psatsimMutation>().Length);
+                } while (changedVariables.Contains(variableToCrossover));
+                changedVariables.Add(variableToCrossover);
+                numberOfVariablesToChange--;
+
+                switch (variableToCrossover)
+                {
+                    case psatsimMutation.executionInteger:
+                        {
+                            var temp = config.execution.integer;
+                            config.execution.integer = psatsimVar2.config.execution.integer;
+                            psatsimVar2.config.execution.integer = temp;
+                            break;
+                        }
+                    case psatsimMutation.executionFloating:
+                        {
+                            var temp = config.execution.floating;
+                            config.execution.floating = psatsimVar2.config.execution.floating;
+                            psatsimVar2.config.execution.floating = temp;
+                            break;
+                        }
+                    case psatsimMutation.executionBranch:
+                        {
+                            var temp = config.execution.branch;
+                            config.execution.branch = psatsimVar2.config.execution.branch;
+                            psatsimVar2.config.execution.branch = temp;
+                            break;
+                        }
+                    case psatsimMutation.executionMemory:
+                        {
+                            var temp = config.execution.memory;
+                            config.execution.memory = psatsimVar2.config.execution.memory;
+                            psatsimVar2.config.execution.memory = temp;
+                            break;
+                        }
+                    case psatsimMutation.generalSuperscalar:
+                        {
+                            var temp = config.general[0].superscalar;
+                            config.general[0].superscalar = psatsimVar2.config.general[0].superscalar;
+                            psatsimVar2.config.general[0].superscalar = temp;
+                            break;
+                        }
+                    case psatsimMutation.generalRename:
+                        {
+                            var temp = config.general[0].rename;
+                            config.general[0].rename = psatsimVar2.config.general[0].rename;
+                            psatsimVar2.config.general[0].rename = temp;
+                            break;
+                        }
+                    case psatsimMutation.generalReorder:
+                        {
+                            var temp = config.general[0].reorder;
+                            config.general[0].reorder = psatsimVar2.config.general[0].reorder;
+                            psatsimVar2.config.general[0].reorder = temp;
+                            break;
+                        }
+                    case psatsimMutation.generalRsbArch:
+                        {
+                            var temp = config.general[0].rsb_architecture;
+                            config.general[0].rsb_architecture = psatsimVar2.config.general[0].rsb_architecture;
+                            psatsimVar2.config.general[0].rsb_architecture = temp;
+                            break;
+                        }
+                    case psatsimMutation.generalVdd:
+                        {
+                            var temp = config.general[0].vdd;
+                            config.general[0].vdd = psatsimVar2.config.general[0].vdd;
+                            psatsimVar2.config.general[0].vdd = temp;
+                        }
+                        break;
+                    case psatsimMutation.generalRsPerRsb:
+                        {
+                            var temp = config.general[0].rs_per_rsb;
+                            config.general[0].rs_per_rsb = psatsimVar2.config.general[0].rs_per_rsb;
+                            psatsimVar2.config.general[0].rs_per_rsb = temp;
+                        }
+                        break;
+                    case psatsimMutation.generalFrequency:
+                        {
+                            var temp = config.general[0].frequency;
+                            config.general[0].frequency = psatsimVar2.config.general[0].frequency;
+                            psatsimVar2.config.general[0].frequency = temp;
+                        }
+                        break;
+                    case psatsimMutation.generalSeparateDispatch:
+                        {
+                            var temp = config.general[0].separate_dispatch;
+                            config.general[0].separate_dispatch = psatsimVar2.config.general[0].separate_dispatch;
+                            psatsimVar2.config.general[0].separate_dispatch = temp;
+                        }
+                        break;
+                    default:
+                        break;
+                }
             }
         }
 
