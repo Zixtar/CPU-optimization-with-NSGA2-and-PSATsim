@@ -40,6 +40,9 @@ namespace MicroControllerOptimizer.XMLSerialization
         {
             Random mem = new Random(DateTime.Now.TimeOfDay.Nanoseconds);
             var memory = new memoryParameters();
+
+            //TODO should hitrate be settable ?????? maybe constants that make sense would be better
+            //TODO should latency be settable ?????? it's clear that 0 latency would be the most performant with the least energy consumed, no?
             memory.hitrate = mem.NextDouble();
             memory.latency = mem.Next(1, 100);
 

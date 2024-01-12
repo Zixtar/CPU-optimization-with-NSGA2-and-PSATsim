@@ -24,11 +24,81 @@ namespace MicroControllerOptimizer.XMLSerialization
             return general;
         }
 
-        public generalClass DeepCopy()
+        public void CreateMutatedSuperscalar(double distance)
         {
-            var copiedGeneral = this.MemberwiseClone() as generalClass;
-            return copiedGeneral;
+            var movement = (int)Math.Round(distance * 16, MidpointRounding.ToPositiveInfinity);
+            if (movement == 0)
+                movement = 1;
+            movement *= randomSign();
+            if (superscalar + movement > 16 || superscalar + movement < 1)
+                movement = -movement;
+            superscalar += movement;
         }
+
+        public void CreateMutatedRename(double distance)
+        {
+            var movement = (int)Math.Round(distance * 512, MidpointRounding.ToPositiveInfinity);
+            if (movement == 0)
+                movement = 1;
+            movement *= randomSign();
+            if (rename + movement > 512 || rename + movement < 1)
+                movement = -movement;
+            rename += movement;
+        }
+        public void CreateMutatedReorder(double distance)
+        {
+            var movement = (int)Math.Round(distance * 512, MidpointRounding.ToPositiveInfinity);
+            if (movement == 0)
+                movement = 1;
+            movement *= randomSign();
+            if (reorder + movement > 512 || reorder + movement < 1)
+                movement = -movement;
+            reorder += movement;
+        }
+
+        public void CreateMutatedRsbArch(double distance)
+        {
+            CreateRandomRsbArch();
+        }
+
+        public void CreateMutatedVdd(double distance)
+        {
+            var movement = distance * 3.3;
+            if (movement == 0)
+                movement = 0.1;
+            movement *= randomSign();
+            if (vdd + movement > 3.3 || vdd + movement < 1.8)
+                movement = -movement;
+            vdd += movement;
+        }
+
+        public void CreateMutatedSeparateDispatch(double distance)
+        {
+            separate_dispatch = !separate_dispatch;
+        }
+
+        public void CreateMutatedFrequency(double distance)
+        {
+            var movement = distance * frequency;
+            if (movement == 0)
+                movement = 1;
+            movement *= randomSign();
+            if (frequency + movement <= 0)
+                movement = -movement;
+            vdd += movement;
+        }
+
+        public void CreateMutatedRsPerRsb(double distance)
+        {
+            var movement = (int)Math.Round(distance * 8, MidpointRounding.ToPositiveInfinity);
+            if (movement == 0)
+                movement = 1;
+            movement *= randomSign();
+            if (rs_per_rsb + movement > 8 || rs_per_rsb - movement < 1)
+                movement = -movement;
+            rs_per_rsb += movement;
+        }
+
         [XmlAttribute]
         public int superscalar { get; set; }
         void CreateRandomSuperscalar()
@@ -94,7 +164,10 @@ namespace MicroControllerOptimizer.XMLSerialization
         void CreateRandomVdd()
         {
             Random vdd = new Random(DateTime.Now.TimeOfDay.Nanoseconds);
-            this.vdd = vdd.NextDouble()*10;
+            do
+            {
+                this.vdd = vdd.NextDouble() * 3.3;
+            } while (this.vdd < 1.8);
         }
         [XmlAttribute]
         public double frequency;
@@ -102,6 +175,16 @@ namespace MicroControllerOptimizer.XMLSerialization
         {
             Random frequency = new Random(DateTime.Now.TimeOfDay.Nanoseconds);
             this.frequency = frequency.Next(100, 2000);
+        }
+        private int randomSign()
+        {
+            var rand = new Random();
+            return (int)Math.Pow(-1, rand.Next(1, 2));
+        }
+        public generalClass DeepCopy()
+        {
+            var copiedGeneral = this.MemberwiseClone() as generalClass;
+            return copiedGeneral;
         }
 
     }

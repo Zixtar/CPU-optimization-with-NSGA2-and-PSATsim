@@ -49,7 +49,7 @@ namespace MicroControllerOptimizer
             GetAvgParameters(path, out double avgCpi, out double avgEnergy);
         }
 
-        private void RunConfig(psatsim psatsimVar,string path)
+        private void RunConfig(psatsim psatsimVar, string path)
         {
             AddAllTracesToConfiguration(ref psatsimVar, path);
             WriteconfigurationXML(psatsimVar, path);
@@ -177,5 +177,16 @@ namespace MicroControllerOptimizer
         {
             LaunchPsatsim();
         }
+
+        private psatsim MutatePsatsim(psatsim psatsimVar)
+        {
+            var rand = new Random();
+            if (rand.NextDouble() < Convert.ToDouble(txtMutationProb.Text))
+            {
+                psatsimVar.MutateRandomVariable(Convert.ToDouble(txtMutationDistance.Text));
+            }
+            return psatsimVar;
+        }
+
     }
 }
