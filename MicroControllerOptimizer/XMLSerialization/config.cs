@@ -28,5 +28,11 @@ namespace MicroControllerOptimizer.XMLSerialization
         public executionClass execution;
         [XmlElement]
         public memoryClass memory;
-	}
+
+        public config DeepCopy()
+        {
+            var copiedConfig = this.MemberwiseClone() as config;
+            return copiedConfig;
+        }
+    }
 }

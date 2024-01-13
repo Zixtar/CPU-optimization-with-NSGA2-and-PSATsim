@@ -101,5 +101,11 @@ namespace MicroControllerOptimizer.XMLSerialization
             Random memory = new Random(DateTime.Now.TimeOfDay.Nanoseconds);
             this.memory = memory.Next(1, 9);
         }
+
+        public executionClass DeepCopy()
+        {
+            var copiedExecution = this.MemberwiseClone() as executionClass;
+            return copiedExecution;
+        }
     }
 }

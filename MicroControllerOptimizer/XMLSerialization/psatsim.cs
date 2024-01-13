@@ -190,5 +190,11 @@ namespace MicroControllerOptimizer.XMLSerialization
 
         [XmlElement]
         public config config;
+
+        public psatsim DeepCopy()
+        {
+            var copiedPsatsim = this.MemberwiseClone() as psatsim;
+            return copiedPsatsim;
+        }
     }
 }

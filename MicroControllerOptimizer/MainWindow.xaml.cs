@@ -32,51 +32,315 @@ namespace MicroControllerOptimizer
         {
             InitializeComponent();
         }
+        int populationSize;
+        double crossoverProbability;
+        double mutationProbability;
+        int currGeneration = 0;
 
-        private void LaunchPsatsim()
+        private void LaunchNSGA2()
         {
+            crossoverProbability = Convert.ToDouble(txtCrossoverProb.Text);
+            mutationProbability = Convert.ToDouble(txtMutationProb.Text);
+            populationSize = Convert.ToInt32(txtPopSize.Text);
+            var maxGenerations = Convert.ToInt32(txtGenerationsNr.Text);
+
             var path = Path.GetFullPath(PathToPsatSim);
 
-            Int32.TryParse(txtPopSize.Text, out var popSize);
             List<psatsim> configs = new List<psatsim>();
-            for (int i = 0; i < popSize; i++)
+            for (int i = 0; i < populationSize; i++)
             {
                 configs.Add(psatsim.GetRandomPsatsim());
+                configs[i].config.name = $"Generation: {currGeneration}, Individual {i + 1}";
             }
 
-            RunConfig(configs[0], path);
+            List<Individual> population = new();
 
-            GetAvgParameters(path, out double avgCpi, out double avgEnergy);
+            foreach (var config in configs)
+            {
+                var count = RunParalelConfigs(config, path);
+                GetAvgParameters(count, path, out double avgCpi, out double avgEnergy);
+                population.Add(new Individual(config, avgCpi, avgEnergy));
+            }
+
+            do
+            {
+                for (int i = 0; i < population.Count; i++)
+                {
+                    if (!population[i].UpToDate)
+                    {
+                        var count = RunParalelConfigs(population[i].Config, path);
+                        GetAvgParameters(count, path, out double avgCpi, out double avgEnergy);
+                        population[i].Objectives[0] = avgCpi;
+                        population[i].Objectives[1] = avgEnergy;
+                        population[i].UpToDate = true;
+                    }
+                }
+
+                var sortedPop = FastNonDominatedSort(population);
+                foreach (var front in sortedPop)
+                {
+                    CalculateCrowdingDistance(front);
+                }
+
+                population = GenerateNextGeneration(population);
+            } while (currGeneration < maxGenerations);
         }
 
+        private List<List<Individual>> FastNonDominatedSort(List<Individual> population)
+        {
+            List<List<int>> dominatedIndividuals = new List<List<int>>(population.Count);
+            List<List<int>> fronts = new List<List<int>> { new List<int>() };
+            List<int> dominatedCount = new List<int>(new int[population.Count]);
+            List<int> rank = new List<int>(new int[population.Count]);
+
+            for (int i = 0; i < population.Count; i++)
+            {
+                dominatedIndividuals.Add(new List<int>());
+                dominatedCount.Add(0);
+
+                for (int j = 0; j < population.Count; j++)
+                {
+
+                    if (population[i].Dominates(population[j]))
+                    {
+                        if (!dominatedIndividuals[i].Contains(j))
+                        {
+                            dominatedIndividuals[i].Add(j);
+                        }
+                    }
+                    else if (population[j].Dominates(population[i]))
+                    {
+                        dominatedCount[i]++;
+                    }
+                }
+
+                if (dominatedCount[i] == 0)
+                {
+                    rank[i] = 0;
+                    if (!fronts[0].Contains(i))
+                    {
+                        fronts[0].Add(i);
+                    }
+                }
+            }
+
+            int idx = 0;
+            while (fronts[idx].Any())
+            {
+                List<int> nextFront = new List<int>();
+                foreach (int dominatingIndividual in fronts[idx])
+                {
+                    foreach (int dominatedIndividual in dominatedIndividuals[dominatingIndividual])
+                    {
+                        dominatedCount[dominatedIndividual]--;
+                        if (dominatedCount[dominatedIndividual] == 0)
+                        {
+                            rank[dominatedIndividual] = idx + 1;
+                            if (!nextFront.Contains(dominatedIndividual))
+                            {
+                                nextFront.Add(dominatedIndividual);
+                            }
+                        }
+                    }
+                }
+
+                idx++;
+                fronts.Add(nextFront);
+            }
+
+            fronts.RemoveAt(fronts.Count - 1);
+            var individualFronts = new List<List<Individual>>();
+            foreach (var front1 in fronts)
+            {
+                var front2 = new List<Individual>();
+                foreach (var ind in front1)
+                {
+                    front2.Add(population[ind]);
+                    population[ind].Rank = rank[ind];
+                }
+                individualFronts.Add(front2);
+            }
+            return individualFronts;
+        }
+
+        private List<List<Individual>> SortPopulation(List<Individual> population)
+        {
+            List<List<Individual>> fronts = new List<List<Individual>>();
+            List<Individual> currentFront = new List<Individual>(population);
+
+            while (currentFront.Count > 0)
+            {
+                List<Individual> nextFront = new List<Individual>();
+
+                foreach (var individual in currentFront)
+                {
+                    individual.DominatedCount = 0;
+                    individual.DominatingIndividuals.Clear();
+
+                    foreach (var other in currentFront)
+                    {
+                        if (individual.Dominates(other))
+                            individual.DominatingIndividuals.Add(other);
+                        else if (other.Dominates(individual))
+                            individual.DominatedCount++;
+                    }
+
+                    if (individual.DominatedCount == 0)
+                    {
+                        nextFront.Add(individual);
+                    }
+                }
+
+                fronts.Add(nextFront);
+
+                List<Individual> individualsToRemove = new List<Individual>();
+
+                foreach (var individual in nextFront)
+                {
+                    foreach (var dominatedIndividual in individual.DominatingIndividuals)
+                    {
+                        dominatedIndividual.DominatedCount--;
+
+                        if (dominatedIndividual.DominatedCount == 0)
+                        {
+                            individualsToRemove.Add(dominatedIndividual);
+                        }
+                    }
+                }
+
+                // Remove dominated individuals outside the loop
+                foreach (var toRemove in individualsToRemove)
+                {
+                    currentFront.Remove(toRemove);
+                }
+            }
+
+            return fronts;
+        }
+
+
+        private void CalculateCrowdingDistance(List<Individual> front)
+        {
+            int size = front.Count;
+
+            foreach (var ind in front)
+            {
+                ind.CrowdingDistance = 0;
+            }
+
+            for (int objIndex = 0; objIndex < front[0].Objectives.Length; objIndex++)
+            {
+                front = front.OrderBy(ind => ind.Objectives[objIndex]).ToList();
+
+                front[0].CrowdingDistance = front[size - 1].CrowdingDistance = double.PositiveInfinity;
+
+                for (int i = 1; i < size - 1; i++)
+                {
+                    front[i].CrowdingDistance += front[i + 1].Objectives[objIndex] - front[i - 1].Objectives[objIndex];
+                }
+            }
+        }
+
+
+        private Individual SelectByRankAndCrowding(Individual ind1, Individual ind2)
+        {
+            if (ind1.Rank > ind2.Rank)
+                return ind1;
+            else if (ind1.Rank < ind2.Rank)
+                return ind2;
+            else
+                if (ind1.CrowdingDistance > ind2.CrowdingDistance)
+                return ind1;
+            else
+                return ind2;
+        }
+
+        private List<Individual> GenerateNextGeneration(List<Individual> population)
+        {
+            List<Individual> nextGeneration = new List<Individual>();
+            var newIndividuals = 0;
+            while (nextGeneration.Count < population.Count)
+            {
+                GetParents(population, out Individual parent1, out Individual parent2);
+                nextGeneration.Add(parent1);
+                nextGeneration.Add(parent2);
+
+                var child1 = parent1.DeepCopy();
+                var child2 = parent2.DeepCopy();
+                var changed = false;
+                if (RandomProbability() < crossoverProbability)
+                {
+                    child1.Config.CrossoverRandomVariables(child2.Config, Convert.ToDouble(txtCrossoverDistance.Text));
+                    child1.Config.config.name = $"Generation: {currGeneration}, Individual {newIndividuals + 1}";
+                    child2.Config.config.name = $"Generation: {currGeneration}, Individual {newIndividuals + 2}";
+                    child1.UpToDate = false;
+                    child2.UpToDate = false;
+                    newIndividuals += 2;
+                    changed = true;
+                }
+
+                if (RandomProbability() < mutationProbability)
+                {
+                    MutateChild(ref newIndividuals, ref child1, changed);
+                }
+                if (RandomProbability() < mutationProbability)
+                {
+                    MutateChild(ref newIndividuals, ref child2, changed);
+                }
+
+                if (!child1.UpToDate)
+                    nextGeneration.Add(child1);
+                if (!child2.UpToDate)
+                    nextGeneration.Add(child2);
+            }
+            return nextGeneration;
+
+            void MutateChild(ref int newIndividuals, ref Individual child, bool changed)
+            {
+                child.Config.MutateRandomVariable(Convert.ToDouble(txtMutationDistance.Text));
+                if (!changed)
+                {
+                    child.Config.config.name = $"Generation: {currGeneration}, Individual {newIndividuals + 1}";
+                    child.UpToDate = false;
+                    newIndividuals += 1;
+                }
+            }
+        }
+
+        private void GetParents(List<Individual> population, out Individual parent1, out Individual parent2)
+        {
+            var random = new Random();
+            var parent1Index = random.Next(0, population.Count);
+            var parent2Index = random.Next(0, population.Count);
+            var possibleParent1 = population[parent1Index];
+            var possibleParent2 = population[parent2Index];
+            parent1 = SelectByRankAndCrowding(possibleParent1, possibleParent2);
+            parent1Index = random.Next(0, population.Count);
+            parent2Index = random.Next(0, population.Count);
+            possibleParent1 = population[parent1Index];
+            possibleParent2 = population[parent2Index];
+            parent2 = SelectByRankAndCrowding(possibleParent1, possibleParent2);
+        }
+
+        private double RandomProbability()
+        {
+            Random random = new Random();
+            return random.NextDouble();
+        }
+
+        #region serial running
         private void RunConfig(psatsim psatsimVar, string path)
         {
             AddAllTracesToConfiguration(ref psatsimVar, path);
-            WriteconfigurationXML(psatsimVar, path);
+            WriteConfigurationXML(psatsimVar, path);
             Process? process = RunPsatSimWithInputFile(path);
             while (!process.HasExited) ;
-        }
-
-        private static Process? RunPsatSimWithInputFile(string path)
-        {
-            var startInfo = new ProcessStartInfo();
-            startInfo.FileName = "C:\\windows\\system32\\cmd.exe";
-            startInfo.Arguments = $"/K cd /D {path}\\ & .\\psatsim_con.exe input.xml output.xml -Ag";
-
-            var outputFilePath = Path.Combine(path, "output.xml");
-            if (File.Exists(outputFilePath))
-            {
-                File.Delete(outputFilePath);
-            }
-
-            var process = Process.Start(startInfo);
-            return process;
         }
 
         private void AddAllTracesToConfiguration(ref psatsim psatsim, string path)
         {
             var traces = Directory.GetFiles(Path.Combine(path, "Traces")).Select(x => Path.GetFileName(x));
-            var tempGenerals = new List<generalClass>();
+            var tempGenerals = new List<XMLSerialization.generalClass>();
             var tempGeneral = psatsim.config.general.First();
             var TracesFolderRelativetoPsatsim = "./Traces";
             foreach (var trace in traces)
@@ -86,6 +350,38 @@ namespace MicroControllerOptimizer
                 tempGenerals.Add(newGeneral);
             }
             psatsim.config.general = tempGenerals.ToArray();
+        }
+
+        private static void WriteConfigurationXML(psatsim psatsim, string path)
+        {
+            var generalXml = new XmlSerializer(typeof(psatsim));
+            var xmlNamespace = new XmlSerializerNamespaces();
+            xmlNamespace.Add("", "");
+            var xmlOptions = new XmlWriterSettings()
+            {
+                Indent = true,
+                OmitXmlDeclaration = true,
+            };
+            using (var stream = XmlWriter.Create(Path.Combine(path, "input.xml"), xmlOptions))
+            {
+                generalXml.Serialize(stream, psatsim, xmlNamespace);
+            }
+        }
+
+        private static Process? RunPsatSimWithInputFile(string path)
+        {
+            var startInfo = new ProcessStartInfo();
+            startInfo.FileName = "C:\\windows\\system32\\cmd.exe";
+            startInfo.Arguments = $"/c cd /D {path}\\ & .\\psatsim_con.exe input.xml output.xml -Ag";
+
+            var outputFilePath = Path.Combine(path, "output.xml");
+            if (File.Exists(outputFilePath))
+            {
+                File.Delete(outputFilePath);
+            }
+
+            var process = Process.Start(startInfo);
+            return process;
         }
 
         private static void GetAvgParameters(string path, out double avgCpi, out double avgEnergy)
@@ -108,21 +404,104 @@ namespace MicroControllerOptimizer
             avgCpi /= variantResults.Count;
         }
 
-        private static void WriteconfigurationXML(psatsim psatsim, string path)
+        #endregion
+
+        #region paralel running
+        private int RunParalelConfigs(psatsim psatsimVar, string path)
         {
-            var generalXml = new XmlSerializer(typeof(psatsim));
-            var xmlNamespace = new XmlSerializerNamespaces();
-            xmlNamespace.Add("", "");
-            var xmlOptions = new XmlWriterSettings()
+            var psatsims = GetConfigsForAllTraces(psatsimVar, path);
+            WriteAllConfigurationsXML(psatsims, path);
+            var processes = RunParalelPsatsism(psatsims, path);
+            while (processes.Any(x => !x.HasExited)) ;
+            return psatsims.Count;
+        }
+
+        private List<psatsim> GetConfigsForAllTraces(psatsim psatsim, string path)
+        {
+            var traces = Directory.GetFiles(Path.Combine(path, "Traces")).Select(x => Path.GetFileName(x));
+            var newPsatsims = new List<psatsim>();
+            var tempGeneral = psatsim.config.general.First();
+            var TracesFolderRelativetoPsatsim = "./Traces";
+            foreach (var trace in traces)
             {
-                Indent = true,
-                OmitXmlDeclaration = true,
-            };
-            using (var stream = XmlWriter.Create(Path.Combine(path, "input.xml"), xmlOptions))
+                var newGeneral = tempGeneral.DeepCopy();
+                newGeneral.trace = $"{TracesFolderRelativetoPsatsim}/{trace}";
+                var newPsatsim = new psatsim();
+                newPsatsim.config = psatsim.config;
+                newPsatsim.config.general[0] = newGeneral;
+                newPsatsims.Add(newPsatsim);
+            }
+            return newPsatsims;
+        }
+
+        private static void WriteAllConfigurationsXML(List<psatsim> psatsims, string path)
+        {
+            for (int i = 0; i < psatsims.Count; i++)
             {
-                generalXml.Serialize(stream, psatsim, xmlNamespace);
+                var generalXml = new XmlSerializer(typeof(psatsim));
+                var xmlNamespace = new XmlSerializerNamespaces();
+                xmlNamespace.Add("", "");
+                var xmlOptions = new XmlWriterSettings()
+                {
+                    Indent = true,
+                    OmitXmlDeclaration = true,
+                };
+                using (var stream = XmlWriter.Create(Path.Combine(path, $"input{i}.xml"), xmlOptions))
+                {
+                    generalXml.Serialize(stream, psatsims[i], xmlNamespace);
+                }
             }
         }
+
+        private static List<Process?> RunParalelPsatsism(List<psatsim> psatsims, string path)
+        {
+            List<Process?> procesess = new();
+            for (int i = 0; i < psatsims.Count; i++)
+            {
+                var startInfo = new ProcessStartInfo();
+                startInfo.FileName = "C:\\windows\\system32\\cmd.exe";
+                startInfo.Arguments = $"/c cd /D {path}\\ & .\\psatsim_con.exe input{i}.xml output{i}.xml -Ag";
+
+                var outputFilePath = Path.Combine(path, "output.xml");
+                if (File.Exists(outputFilePath))
+                {
+                    File.Delete(outputFilePath);
+                }
+
+                var process = Process.Start(startInfo);
+                procesess.Add(process);
+            }
+            return procesess;
+        }
+
+        private static void GetAvgParameters(int count, string path, out double avgCpi, out double avgEnergy)
+        {
+            avgCpi = 0;
+            avgEnergy = 0;
+            var totalVariants = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var outputDoc = new XmlDocument();
+                if (File.Exists(Path.Combine(path, $"output{i}.xml")))
+                    outputDoc.Load(Path.Combine(path, $"output{i}.xml"));
+
+                var variantResults = outputDoc.DocumentElement.SelectNodes("variation/general");
+                totalVariants += variantResults.Count;
+                foreach (XmlNode result in variantResults)
+                {
+                    Double.TryParse(result.Attributes["energy"].Value, out double energy);
+                    avgEnergy += energy;
+                    Double.TryParse(result.Attributes["ipc"].Value, out double ipc);
+                    avgCpi += 1 / ipc;
+                }
+            }
+            avgEnergy /= totalVariants;
+            avgCpi /= totalVariants;
+        }
+
+        #endregion
+
+
 
         private static psatsim GetDefaultConfiguration()
         {
@@ -175,27 +554,44 @@ namespace MicroControllerOptimizer
 
         private void btnLaunch_Click(object sender, RoutedEventArgs e)
         {
-            LaunchPsatsim();
+            LaunchNSGA2();
         }
-
-        private psatsim MutatePsatsim(psatsim psatsimVar)
-        {
-            var rand = new Random();
-            if (rand.NextDouble() < Convert.ToDouble(txtMutationProb.Text))
-            {
-                psatsimVar.MutateRandomVariable(Convert.ToDouble(txtMutationDistance.Text));
-            }
-            return psatsimVar;
-        }
-
-        private void CrossoverPsatsims(ref psatsim psatsimVar1,ref psatsim psatsimVar2)
-        {
-            var rand = new Random();
-            if (rand.NextDouble() < Convert.ToDouble(txtCrossoverProb.Text))
-            {
-                psatsimVar1.CrossoverRandomVariables(psatsimVar2, Convert.ToDouble(txtCrossoverDistance.Text));
-            }
-        }
-
     }
+
+    class Individual
+    {
+        public psatsim Config;
+        public double[] Objectives = new double[2];
+        public double Fitness;
+        public bool UpToDate = false;
+
+        public Individual(psatsim config, double avgCpi, double avgEnergy)
+        {
+            this.Config = config;
+            this.Objectives[0] = avgCpi;
+            this.Objectives[1] = avgEnergy;
+            UpToDate = true;
+        }
+
+        public int Rank;
+        public double CrowdingDistance;
+        public int DominatedCount;
+        public List<Individual> DominatingIndividuals = new List<Individual>();
+
+        public bool Dominates(Individual other)
+        {
+            const double epsilon = 1e-10;
+
+            return this.Objectives[0] <= other.Objectives[0] + epsilon && this.Objectives[1] <= other.Objectives[1] + epsilon
+                && (this.Objectives[0] + epsilon < other.Objectives[0] || this.Objectives[1] + epsilon < other.Objectives[1]);
+        }
+
+        public Individual DeepCopy()
+        {
+            var copiedIndividual = this.MemberwiseClone() as Individual;
+            return copiedIndividual;
+        }
+    }
+
+
 }
