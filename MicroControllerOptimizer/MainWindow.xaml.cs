@@ -33,14 +33,14 @@ namespace MicroControllerOptimizer
             InitializeComponent();
         }
         int populationSize;
-        double crossoverProbability;
-        double mutationProbability;
-        int currGeneration = 0;
-
+        NsgaII algorithmInstance = new NsgaII();
         private void LaunchNSGA2()
         {
-            crossoverProbability = Convert.ToDouble(txtCrossoverProb.Text);
-            mutationProbability = Convert.ToDouble(txtMutationProb.Text);
+            algorithmInstance.crossoverProbability = Convert.ToDouble(txtCrossoverProb.Text);
+            algorithmInstance.mutationProbability = Convert.ToDouble(txtMutationProb.Text);
+            algorithmInstance.mutationDistance = Convert.ToDouble(txtMutationDistance.Text);
+            algorithmInstance.crossoverDistance = Convert.ToDouble(txtCrossoverDistance.Text);
+            algorithmInstance.currGeneration = 0;
             populationSize = Convert.ToInt32(txtPopSize.Text);
             var maxGenerations = Convert.ToInt32(txtGenerationsNr.Text);
 
@@ -50,7 +50,7 @@ namespace MicroControllerOptimizer
             for (int i = 0; i < populationSize; i++)
             {
                 configs.Add(psatsim.GetRandomPsatsim());
-                configs[i].config.name = $"Generation: {currGeneration}, Individual {i + 1}";
+                configs[i].config.name = $"Generation: {algorithmInstance.currGeneration}, Individual {i + 1}";
             }
 
             List<Individual> population = new();
@@ -76,257 +76,17 @@ namespace MicroControllerOptimizer
                     }
                 }
 
-                var sortedPop = FastNonDominatedSort(population);
+                var sortedPop = algorithmInstance.FastNonDominatedSort(population);
                 foreach (var front in sortedPop)
                 {
-                    CalculateCrowdingDistance(front);
+                    algorithmInstance.CalculateCrowdingDistance(front);
                 }
 
-                population = GenerateNextGeneration(population);
-            } while (currGeneration < maxGenerations);
+                algorithmInstance.currGeneration++;
+                population = algorithmInstance.GenerateNextGeneration(population);
+            } while (algorithmInstance.currGeneration < maxGenerations);
         }
 
-        private List<List<Individual>> FastNonDominatedSort(List<Individual> population)
-        {
-            List<List<int>> dominatedIndividuals = new List<List<int>>(population.Count);
-            List<List<int>> fronts = new List<List<int>> { new List<int>() };
-            List<int> dominatedCount = new List<int>(new int[population.Count]);
-            List<int> rank = new List<int>(new int[population.Count]);
-
-            for (int i = 0; i < population.Count; i++)
-            {
-                dominatedIndividuals.Add(new List<int>());
-                dominatedCount.Add(0);
-
-                for (int j = 0; j < population.Count; j++)
-                {
-
-                    if (population[i].Dominates(population[j]))
-                    {
-                        if (!dominatedIndividuals[i].Contains(j))
-                        {
-                            dominatedIndividuals[i].Add(j);
-                        }
-                    }
-                    else if (population[j].Dominates(population[i]))
-                    {
-                        dominatedCount[i]++;
-                    }
-                }
-
-                if (dominatedCount[i] == 0)
-                {
-                    rank[i] = 0;
-                    if (!fronts[0].Contains(i))
-                    {
-                        fronts[0].Add(i);
-                    }
-                }
-            }
-
-            int idx = 0;
-            while (fronts[idx].Any())
-            {
-                List<int> nextFront = new List<int>();
-                foreach (int dominatingIndividual in fronts[idx])
-                {
-                    foreach (int dominatedIndividual in dominatedIndividuals[dominatingIndividual])
-                    {
-                        dominatedCount[dominatedIndividual]--;
-                        if (dominatedCount[dominatedIndividual] == 0)
-                        {
-                            rank[dominatedIndividual] = idx + 1;
-                            if (!nextFront.Contains(dominatedIndividual))
-                            {
-                                nextFront.Add(dominatedIndividual);
-                            }
-                        }
-                    }
-                }
-
-                idx++;
-                fronts.Add(nextFront);
-            }
-
-            fronts.RemoveAt(fronts.Count - 1);
-            var individualFronts = new List<List<Individual>>();
-            foreach (var front1 in fronts)
-            {
-                var front2 = new List<Individual>();
-                foreach (var ind in front1)
-                {
-                    front2.Add(population[ind]);
-                    population[ind].Rank = rank[ind];
-                }
-                individualFronts.Add(front2);
-            }
-            return individualFronts;
-        }
-
-        private List<List<Individual>> SortPopulation(List<Individual> population)
-        {
-            List<List<Individual>> fronts = new List<List<Individual>>();
-            List<Individual> currentFront = new List<Individual>(population);
-
-            while (currentFront.Count > 0)
-            {
-                List<Individual> nextFront = new List<Individual>();
-
-                foreach (var individual in currentFront)
-                {
-                    individual.DominatedCount = 0;
-                    individual.DominatingIndividuals.Clear();
-
-                    foreach (var other in currentFront)
-                    {
-                        if (individual.Dominates(other))
-                            individual.DominatingIndividuals.Add(other);
-                        else if (other.Dominates(individual))
-                            individual.DominatedCount++;
-                    }
-
-                    if (individual.DominatedCount == 0)
-                    {
-                        nextFront.Add(individual);
-                    }
-                }
-
-                fronts.Add(nextFront);
-
-                List<Individual> individualsToRemove = new List<Individual>();
-
-                foreach (var individual in nextFront)
-                {
-                    foreach (var dominatedIndividual in individual.DominatingIndividuals)
-                    {
-                        dominatedIndividual.DominatedCount--;
-
-                        if (dominatedIndividual.DominatedCount == 0)
-                        {
-                            individualsToRemove.Add(dominatedIndividual);
-                        }
-                    }
-                }
-
-                // Remove dominated individuals outside the loop
-                foreach (var toRemove in individualsToRemove)
-                {
-                    currentFront.Remove(toRemove);
-                }
-            }
-
-            return fronts;
-        }
-
-
-        private void CalculateCrowdingDistance(List<Individual> front)
-        {
-            int size = front.Count;
-
-            foreach (var ind in front)
-            {
-                ind.CrowdingDistance = 0;
-            }
-
-            for (int objIndex = 0; objIndex < front[0].Objectives.Length; objIndex++)
-            {
-                front = front.OrderBy(ind => ind.Objectives[objIndex]).ToList();
-
-                front[0].CrowdingDistance = front[size - 1].CrowdingDistance = double.PositiveInfinity;
-
-                for (int i = 1; i < size - 1; i++)
-                {
-                    front[i].CrowdingDistance += front[i + 1].Objectives[objIndex] - front[i - 1].Objectives[objIndex];
-                }
-            }
-        }
-
-
-        private Individual SelectByRankAndCrowding(Individual ind1, Individual ind2)
-        {
-            if (ind1.Rank > ind2.Rank)
-                return ind1;
-            else if (ind1.Rank < ind2.Rank)
-                return ind2;
-            else
-                if (ind1.CrowdingDistance > ind2.CrowdingDistance)
-                return ind1;
-            else
-                return ind2;
-        }
-
-        private List<Individual> GenerateNextGeneration(List<Individual> population)
-        {
-            List<Individual> nextGeneration = new List<Individual>();
-            var newIndividuals = 0;
-            while (nextGeneration.Count < population.Count)
-            {
-                GetParents(population, out Individual parent1, out Individual parent2);
-                nextGeneration.Add(parent1);
-                nextGeneration.Add(parent2);
-
-                var child1 = parent1.DeepCopy();
-                var child2 = parent2.DeepCopy();
-                var changed = false;
-                if (RandomProbability() < crossoverProbability)
-                {
-                    child1.Config.CrossoverRandomVariables(child2.Config, Convert.ToDouble(txtCrossoverDistance.Text));
-                    child1.Config.config.name = $"Generation: {currGeneration}, Individual {newIndividuals + 1}";
-                    child2.Config.config.name = $"Generation: {currGeneration}, Individual {newIndividuals + 2}";
-                    child1.UpToDate = false;
-                    child2.UpToDate = false;
-                    newIndividuals += 2;
-                    changed = true;
-                }
-
-                if (RandomProbability() < mutationProbability)
-                {
-                    MutateChild(ref newIndividuals, ref child1, changed);
-                }
-                if (RandomProbability() < mutationProbability)
-                {
-                    MutateChild(ref newIndividuals, ref child2, changed);
-                }
-
-                if (!child1.UpToDate)
-                    nextGeneration.Add(child1);
-                if (!child2.UpToDate)
-                    nextGeneration.Add(child2);
-            }
-            return nextGeneration;
-
-            void MutateChild(ref int newIndividuals, ref Individual child, bool changed)
-            {
-                child.Config.MutateRandomVariable(Convert.ToDouble(txtMutationDistance.Text));
-                if (!changed)
-                {
-                    child.Config.config.name = $"Generation: {currGeneration}, Individual {newIndividuals + 1}";
-                    child.UpToDate = false;
-                    newIndividuals += 1;
-                }
-            }
-        }
-
-        private void GetParents(List<Individual> population, out Individual parent1, out Individual parent2)
-        {
-            var random = new Random();
-            var parent1Index = random.Next(0, population.Count);
-            var parent2Index = random.Next(0, population.Count);
-            var possibleParent1 = population[parent1Index];
-            var possibleParent2 = population[parent2Index];
-            parent1 = SelectByRankAndCrowding(possibleParent1, possibleParent2);
-            parent1Index = random.Next(0, population.Count);
-            parent2Index = random.Next(0, population.Count);
-            possibleParent1 = population[parent1Index];
-            possibleParent2 = population[parent2Index];
-            parent2 = SelectByRankAndCrowding(possibleParent1, possibleParent2);
-        }
-
-        private double RandomProbability()
-        {
-            Random random = new Random();
-            return random.NextDouble();
-        }
 
         #region serial running
         private void RunConfig(psatsim psatsimVar, string path)
@@ -502,96 +262,9 @@ namespace MicroControllerOptimizer
         #endregion
 
 
-
-        private static psatsim GetDefaultConfiguration()
-        {
-            var psatsim = new psatsim();
-            var config = new config()
-            {
-                name = "Case1",
-            };
-            var generals = new List<generalClass>();
-            var general = new generalClass()
-            {
-                superscalar = 1,
-                rename = 16,
-                reorder = 20,
-                rsb_architecture = "distributed",
-                rs_per_rsb = 1,
-                speculative = true,
-                speculation_accuracy = 0.98,
-                separate_dispatch = true,
-                seed = 1,
-                trace = "compress.tra",
-                output = "output.xml",
-                vdd = 2.2,
-                frequency = 600,
-            };
-            generals.Add(general);
-            var execution = new executionClass
-            {
-                architecture = "standard",
-                integer = 2,
-                floating = 2,
-                branch = 1,
-                memory = 1
-            };
-            var memory = new memoryClass
-            {
-                architecture = memArchitecture.l2,
-                l1_code = new memoryParameters { hitrate = 0.99, latency = 1 },
-                l1_data = new memoryParameters { hitrate = 0.97, latency = 1 },
-                l2 = new memoryParameters { hitrate = 0.99, latency = 3 },
-                system = new memoryParameters { latency = 20 },
-            };
-            config.general = generals.ToArray();
-            config.execution = execution;
-            config.memory = memory;
-            config.name = "Case1";
-            psatsim.config = config;
-            return psatsim;
-        }
-
         private void btnLaunch_Click(object sender, RoutedEventArgs e)
         {
             LaunchNSGA2();
         }
     }
-
-    class Individual
-    {
-        public psatsim Config;
-        public double[] Objectives = new double[2];
-        public double Fitness;
-        public bool UpToDate = false;
-
-        public Individual(psatsim config, double avgCpi, double avgEnergy)
-        {
-            this.Config = config;
-            this.Objectives[0] = avgCpi;
-            this.Objectives[1] = avgEnergy;
-            UpToDate = true;
-        }
-
-        public int Rank;
-        public double CrowdingDistance;
-        public int DominatedCount;
-        public List<Individual> DominatingIndividuals = new List<Individual>();
-
-        public bool Dominates(Individual other)
-        {
-            const double epsilon = 1e-10;
-
-            return this.Objectives[0] <= other.Objectives[0] + epsilon && this.Objectives[1] <= other.Objectives[1] + epsilon
-                && (this.Objectives[0] + epsilon < other.Objectives[0] || this.Objectives[1] + epsilon < other.Objectives[1]);
-        }
-
-        public Individual DeepCopy()
-        {
-            var copiedIndividual = this.MemberwiseClone() as Individual;
-            return copiedIndividual;
-        }
-    }
-
-
 }
