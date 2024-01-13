@@ -1,4 +1,7 @@
-﻿using MicroControllerOptimizer.XMLSerialization;
+﻿using LiveCharts;
+using LiveCharts.Defaults;
+using LiveCharts.Wpf;
+using MicroControllerOptimizer.XMLSerialization;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -31,36 +34,36 @@ namespace MicroControllerOptimizer
         public MainWindow()
         {
             InitializeComponent();
+
+
         }
         int populationSize;
         NsgaII algorithmInstance = new NsgaII();
+        public ChartValues<ObservablePoint> ValuesA { set; get; } = new();
+
         private void LaunchNSGA2()
         {
-            algorithmInstance.crossoverProbability = Convert.ToDouble(txtCrossoverProb.Text);
-            algorithmInstance.mutationProbability = Convert.ToDouble(txtMutationProb.Text);
-            algorithmInstance.mutationDistance = Convert.ToDouble(txtMutationDistance.Text);
-            algorithmInstance.crossoverDistance = Convert.ToDouble(txtCrossoverDistance.Text);
+
             algorithmInstance.currGeneration = 0;
-            populationSize = Convert.ToInt32(txtPopSize.Text);
-            var maxGenerations = Convert.ToInt32(txtGenerationsNr.Text);
-
+            var maxGenerations = 3;// Convert.ToInt32(txtGenerationsNr.Text);
             var path = Path.GetFullPath(PathToPsatSim);
-
-            List<psatsim> configs = new List<psatsim>();
-            for (int i = 0; i < populationSize; i++)
-            {
-                configs.Add(psatsim.GetRandomPsatsim());
-                configs[i].config.name = $"Generation: {algorithmInstance.currGeneration}, Individual {i + 1}";
-            }
-
             List<Individual> population = new();
 
-            foreach (var config in configs)
+            GenerateStartingPopilation(path, ref population);
+            Dispatcher.Invoke(() =>
             {
-                var count = RunParalelConfigs(config, path);
-                GetAvgParameters(count, path, out double avgCpi, out double avgEnergy);
-                population.Add(new Individual(config, avgCpi, avgEnergy));
-            }
+                var axisX = new Axis();
+                var axisY = new Axis();
+                axisX.Title = "avgCpi";
+                axisY.Title = "avgEnergy";
+                axisX.MinValue = 0;
+                axisY.MaxValue = 30;
+                axisY.MinValue = 0;
+                plot.AxisX.Clear();
+                plot.AxisY.Clear();
+                plot.AxisX.Add(axisX);
+                plot.AxisY.Add(axisY);
+            });
 
             do
             {
@@ -68,6 +71,10 @@ namespace MicroControllerOptimizer
                 {
                     if (!population[i].UpToDate)
                     {
+                        Dispatcher.Invoke(() =>
+                        {
+                            txtRunningInfo.Content = "Individual: " + (i + 1);
+                        });
                         var count = RunParalelConfigs(population[i].Config, path);
                         GetAvgParameters(count, path, out double avgCpi, out double avgEnergy);
                         population[i].Objectives[0] = avgCpi;
@@ -82,9 +89,42 @@ namespace MicroControllerOptimizer
                     algorithmInstance.CalculateCrowdingDistance(front);
                 }
 
+                this.Dispatcher.Invoke(() =>
+                {
+                    plot.DataContext = this;
+                    var values = new ChartValues<ObservablePoint>();
+
+                    foreach (var individual in population)
+                    {
+                        ValuesA.Add(new ObservablePoint(individual.Objectives[0], individual.Objectives[1]));
+                    }
+                    txtGenerationCounter.Content = "Generation: " + algorithmInstance.currGeneration.ToString();
+                });
                 algorithmInstance.currGeneration++;
                 population = algorithmInstance.GenerateNextGeneration(population);
             } while (algorithmInstance.currGeneration < maxGenerations);
+        }
+
+        private void GenerateStartingPopilation(string path, ref List<Individual> population)
+        {
+            List<psatsim> configs = new List<psatsim>();
+            for (int i = 0; i < populationSize; i++)
+            {
+                configs.Add(psatsim.GetRandomPsatsim());
+                configs[i].config.name = $"Generation: {algorithmInstance.currGeneration}, Individual {i + 1}";
+            }
+
+
+            for (int i = 0; i < configs.Count; i++)
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    txtRunningInfo.Content = "Ind: " + (i + 1);
+                });
+                var count = RunParalelConfigs(configs[i], path);
+                GetAvgParameters(count, path, out double avgCpi, out double avgEnergy);
+                population.Add(new Individual(configs[i], avgCpi, avgEnergy));
+            }
         }
 
 
@@ -218,9 +258,13 @@ namespace MicroControllerOptimizer
             List<Process?> procesess = new();
             for (int i = 0; i < psatsims.Count; i++)
             {
+                Process process = new Process();
                 var startInfo = new ProcessStartInfo();
-                startInfo.FileName = "C:\\windows\\system32\\cmd.exe";
-                startInfo.Arguments = $"/c cd /D {path}\\ & .\\psatsim_con.exe input{i}.xml output{i}.xml -Ag";
+                process.StartInfo.FileName = "C:\\windows\\system32\\cmd.exe";
+                process.StartInfo.RedirectStandardInput = true;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.UseShellExecute = false;
 
                 var outputFilePath = Path.Combine(path, "output.xml");
                 if (File.Exists(outputFilePath))
@@ -228,7 +272,12 @@ namespace MicroControllerOptimizer
                     File.Delete(outputFilePath);
                 }
 
-                var process = Process.Start(startInfo);
+                process.Start();
+
+                process.StandardInput.WriteLine($"cd /D {path}\\ & .\\psatsim_con.exe input{i}.xml output{i}.xml -Ag");
+                process.StandardInput.Flush();
+                process.StandardInput.Close();
+
                 procesess.Add(process);
             }
             return procesess;
@@ -264,7 +313,17 @@ namespace MicroControllerOptimizer
 
         private void btnLaunch_Click(object sender, RoutedEventArgs e)
         {
-            LaunchNSGA2();
+            algorithmInstance.crossoverProbability = Convert.ToDouble(txtCrossoverProb.Text);
+            algorithmInstance.mutationProbability = Convert.ToDouble(txtMutationProb.Text);
+            algorithmInstance.mutationDistance = Convert.ToDouble(txtMutationDistance.Text);
+            algorithmInstance.crossoverDistance = Convert.ToDouble(txtCrossoverDistance.Text);
+            populationSize = Convert.ToInt32(txtPopSize.Text);
+
+            Task.Factory.StartNew(() => { LaunchNSGA2(); });
+
+            var btn = sender as Button;
+            btn.IsEnabled = false;
+            btn.Content = "Running...";
         }
     }
 }
